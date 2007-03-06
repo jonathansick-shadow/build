@@ -5,9 +5,7 @@ packageName('LSSTinit')
 
 register('LSST', 'm4_BASEURL/pm', 'LSST DM System', 'http://www.lsstcorp.org', 'LSST Build Manager', 'rplante@ncsa.uiuc.edu')
 
-shell('mkdir -p external')
-
-downloadUntar('m4_BASEURL/deploy/Build/0.2/LSSTinit/LSSTinit.tar.gz')
+downloadUntar('m4_BASEURL/deploy/build/0.3/LSSTinit/LSSTinit.tar.gz')
 
 insertLine('    setenv LSST_HOME $PWD', 'loadLSST.csh', '# setenv LSST_HOME')
 insertLine('    export LSST_HOME=$PWD', 'loadLSST.sh', '# export LSST_HOME')
