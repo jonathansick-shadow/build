@@ -1,0 +1,56 @@
+# Make the C/C++ compile portion of a Python extension module
+#
+# The Makefile.global contains rules for building .c, .o files.  This include
+# requires that make be called with -I option.  The Makefile in the
+# python directory handles the pure python part of this module. 
+#
+# Look for the "EDIT" labels for places you should update.
+#
+include Makefile.global
+
+# EDIT:
+#
+# replace MODULENAME with the name of the C module being built.
+#
+MODULE = MODULENAME.$(SO)
+
+# EDIT
+#
+# list the object files to be built
+#
+OBJS = 
+
+# EDIT
+#
+# if necessary add additional include directories.  (Replace PRODUCT
+# with appropriate product names.)
+#
+# SUPPORT_CFLAGS += -I$(PRODUCT_DIR)
+# SUPPORT_LIBS += -L$(PRODUCT_DIR)/lib -lPRODUCT
+
+.PHONY : all
+all : build
+
+.PHONY : build
+build : $(MODULE)
+	@: nothing to do
+#
+#
+$(MODULE) : $(OBJS)
+	$(LD) -o $(MODULE) $(SO_LDFLAGS) $(OBJS) $(SUPPORT_LIBS)
+#
+# Update Makefile dependencies
+#
+-include .Makefile.depend
+.PHONY : depend
+depend :
+	@echo Rebuilding make dependencies
+	@$(CC) $(CFLAGS) -MM $(OBJS:.o=.c) > .Makefile.depend
+#
+clean :
+	$(RM) *.o _*.{so,dylib} *_wrap.c
+	$(RM) core core.[0-9]*[0-9] *~
+
+distclean: clean
+	@ $(RM) .Makefile.depend
+	$(RM) *.so *.pyc wcstools.py*

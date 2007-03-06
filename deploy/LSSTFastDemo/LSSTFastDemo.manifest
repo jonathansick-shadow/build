@@ -1,0 +1,6 @@
+EUPS distribution manifest for support (svn). Version 1.0
+#
+# pkg   flavor version  tablefile      installation_directory    installID
+#------ ------ -------  -------------  ------------------------  --------------
+Termcap	Linux  1.3.1-1	Termcap.table  external/Termcap/1.3.1-1  pacman:LSST:Termcap-1.3.1-1
+Termcap	Linux  1.3.1-2	Termcap.table  external/Termcap/1.3.1-2  pacman:LSST:Termcap-1.3.1-2

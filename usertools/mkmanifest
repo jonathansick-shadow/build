@@ -1,0 +1,214 @@
+#! /bin/env python
+#
+import os, os.path
+import re, sys
+from subprocess import Popen
+from optparse import OptionParser
+
+prog = os.path.basename(sys.argv[0])
+linetmpl = "%(p)s Linux %(v)s %(p)s.table %(e)s%(p)s/%(v)s " + \
+           "pacman:LSST:%(p)s-%(v)s"
+setupreq = re.compile(r'setupRequired\(["\']([^"]+)["\']\)')
+recurrent = re.compile(r'Current')
+eups = None
+
+def main():
+    """create a manifest file for a given package"""
+
+    try:
+        cl = OptionParser()
+        cl.add_option("-v", "--verbose",
+                      action="store_const", const=1, dest="verbose",
+                      help="print extra messages to stderr")
+        cl.add_option("-q", "--quiet",
+                      action="store_const", const=-1, dest="verbose",
+                      help="print extra messages to stderr")
+        cl.add_option("-y", "--verbosity", 
+                      action="store", dest="verbose", type="int", default=0,
+                      help="set the level of message verbosity to stderr")
+        cl.add_option("-e", "--external",
+                      action="store_const", const="external/", dest="ext",
+                      default='', help="assume package is an external one")
+        cl.add_option("-s", "--silent",
+                      action="store_true", dest="silent",
+                      help="print nothing to stdout")
+        cl.add_option("-j", "--nodependencies", default=True,
+                      action="store_false", dest="dodependencies", 
+                      help="do not attempt to look up dependencies")
+        cl.add_option("-m", "--formatversion",
+                      action="store", dest="fmtver", default='v1.0',
+                      help="set version number for the manifest file format")
+        (opts, args) = cl.parse_args()
+
+    except Exception, e:
+        print >> sys.stderr, "%s: %s" % (prog, e)
+        sys.exit(2)
+        
+
+    try:
+        if len(args) < 2:
+            raise ValueError("No package and/or version provided")
+        pkg = args[0]
+        ver = args[1]
+
+        # tlines will hold the column data for output the manifest table.
+        # Later, we'll use the column data to determine the width of column
+        # for better readability.  
+        # The first element is a comment line that names the columns 
+        tlines = []
+        tlines.append(("pkg flavor version tablefile installation_directory " +
+                      "installID").split())
+        tlines[0][0] = "# " + tlines[0][0]
+
+        # add a line 
+        tlines.append((linetmpl %
+                       {'p': pkg, 'v': ver, 'e': opts.ext}).split())
+
+        if len(args) > 2 and opts.dodependencies:
+            if (len(args[2]) < 1):
+                raise AppUserError("zero-length table file name provided")
+            addDependencies(args[2], tlines)
+
+        # we should have all our data; we should now be able to determine
+        # layout
+        maxwidths = []
+        widths = []
+        nc = len(tlines[0])
+        for c in range(nc):
+            widths.append([])
+            for r in range(len(tlines)):
+                widths[c].append(len(tlines[r][c]))
+            maxwidths.append(max(widths[c]))
+
+        # create template
+        mantmpl = "%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds" % \
+                  (maxwidths[0], maxwidths[1], maxwidths[2],
+                   maxwidths[3], maxwidths[4], maxwidths[5])
+        
+        # now print out the results
+        if not opts.silent:
+            print >> sys.stdout, \
+                  "EUPS distribution manifest for %s (%s). Version %s" % \
+                  (pkg, ver, opts.fmtver)
+            print >> sys.stdout, "# "
+            tmp = (mantmpl % (tlines[0][0], tlines[0][1], tlines[0][2], 
+                              tlines[0][3], tlines[0][4], tlines[0][5]))[0:80]
+            print >> sys.stdout, tmp
+            tmp = " ".join(map(lambda x: '-'*x, maxwidths[0:6]))[1:80]
+            print >> sys.stdout, "#" + tmp
+
+            for line in tlines[1:]:
+                print >> sys.stdout, mantmpl % (line[0], line[1], line[2], 
+                                                line[3], line[4], line[5])
+
+    except AppUserError, e:
+        if opts.verbose >= 0:
+            print >> sys.stderr, "%s: %s" % (prog, e)
+        sys.exit(1)
+
+def addDependencies(tablefile, tlines):
+    """add manifest table data from a EUPS table file to the manifest table
+    structure.
+
+    @param tablefile   the name of a EUPS table file
+    @param tlines      the manifest table structure
+    @exception IOError  if there is trouble reading the file
+    @returns array     the updated manifest table structure
+    """
+
+    tf = open(tablefile);
+
+    for line in tf:
+        match = setupreq.match(line)
+        if match is None:
+            continue
+        rpkg = match.group(1).split()
+        if len(rpkg) < 2:
+            rpkg.append(getCurrentVersionFor(rpkg[0]))
+        rtblfile = findTableFileFor(rpkg[0], rpkg[1])
+
+        external = ''
+        extfield = reexternal.search(rtblfile)
+        if extfield is not None:
+            external = extfield.group(0)
+
+        if any(map(lambda x: x[0]==rpkg[0] and x[2]==rpkg[1], tlines)):
+            continue
+                       
+        tlines.append((linetmpl %
+                       {'p': pkg, 'v': ver, 'e': external}).split())
+
+        if rtblfile is not None:
+            addDependencies(rtblfile, tlines)
+
+    tf.close()
+
+def findTableFileFor(package, version):
+    """find the EUPS table file for a given package and version.
+
+    This method finds this info by doing a "eups list -v ..." command
+    @param package   the package to look up
+    @param version    the desired version
+    """
+    checkForEUPS()
+
+    list = Popen([eups, "list", package, version], bufsize=128, stdout=PIPE,
+                 close_fds=True)
+    info = list.stdout.readlines()
+    if list.wait() != 0:
+        raise AppUserError("eups list command failed for %s %s" %
+                           (package, version))
+    if len(info) < 1:
+        raise AppUserError("%s %s apparently not declared to eups." %
+                           (package, version))
+    info = re.findall(r'\S+', info[0])
+    if len(info) < 3:
+        raise AppUserError("Trouble reading eups list info for %s %s." %
+                           (package, version))
+    tfile = "%s/%s.table" % (info[2], package)
+    if not os.path.isfile(tfile):
+        raise AppUserError(tfile + ": Table file not found")
+    return tfile
+
+def getCurrentVersionFor(package):
+    """consult EUPS and determine the version of a package declared as current
+
+    @param package  the name of the package to look up
+    @exception Exception   if EUPS is not setup or no version has been
+                           declared as current.
+    """
+    checkForEUPS()
+
+    list = Popen([eups, "list", package], bufsize=128, stdout=PIPE,
+                 close_fds=True)
+    line = filter(lambda x: recurrent.search(x), list.stdout.readlines())
+    if list.wait() != 0:
+        raise AppUserError("eups list command failed for %s" % package)
+    if len(line) == 0:
+        raise AppUserError("No current version set for %s" % package)
+
+    return re.findall(r'\S+', line)[0]
+
+
+def checkForEUPS():
+    """check to make sure that EUPS is set up and useable
+    @exception Exception  if EUPS is not available
+    """
+    global eups
+    
+    if eups is None:
+        if not (os.environ.has_key('EUPS_DIR') and
+              os.path.dir(os.environ['EUPS_DIR'])):
+            raise AppUserError("EUPS is apparently not setup")
+        if not os.path.isfile("%s/bin/eups" % os.environ['EUPS_DIR']):
+            raise AppUserError("Can't find eups command")
+        eups = "%s/bin/eups" % os.environ['EUPS_DIR']
+    
+class AppUserError(Exception):
+    """an application exception occurred do to a user or application
+    configuration error"""
+    pass
+        
+
+if __name__ == '__main__':
+    main()
