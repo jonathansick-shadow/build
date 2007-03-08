@@ -72,6 +72,10 @@ if [ ! -e latest ]; then
 fi
 cd $LSST_HOME
 
+source eups/latest/bin/setups.sh
+flavor=`eups flavor`
+mkdir -p $flavor
+
 echo Initialization complete
 echo 
 echo "Now type "
