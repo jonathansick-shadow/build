@@ -40,5 +40,16 @@ if ($?LSST_DEVEL) then
     endif
 endif
 
+# set the LSST_PKGS var
+if (! $?LSST_PKGS) then
+    if ($?EUPS_FLAVOR) then
+        set flv = "$EUPS_FLAVOR"
+    else
+        set flv = `eups flavor`
+    endif
+    setenv LSST_PKGS $LSST_HOME/`eups flavor`
+    unset flv
+endif
+
 # Setup your default environemnt
 # setup LSST 1.0

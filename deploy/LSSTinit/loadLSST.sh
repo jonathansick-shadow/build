@@ -40,5 +40,16 @@ if [ -n "$LSST_DEVEL" ]; then
     fi
 fi
 
+# set the LSST_PKGS var
+if [ -z "$LSST_PKGS" ]; then
+    if [ -n "$EUPS_FLAVOR" ]; then
+        flv="$EUPS_FLAVOR"
+    else
+        flv=`eups flavor`
+    fi
+    export LSST_PKGS="$LSST_HOME/$flv"
+    flv=
+fi
+
 # Setup your default environemnt
 # setup LSST 1.0
