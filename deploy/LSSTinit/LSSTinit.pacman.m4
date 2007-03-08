@@ -10,10 +10,6 @@ downloadUntar('m4_BASEURL/deploy/build/0.3/LSSTinit/LSSTinit.tar.gz')
 insertLine('    setenv LSST_HOME $PWD', 'loadLSST.csh', '# setenv LSST_HOME')
 insertLine('    export LSST_HOME=$PWD', 'loadLSST.sh', '# export LSST_HOME')
 
-setenvShellTemp('EUPS_FLAVOR', 'uname -s')
-insertLine('    setenv EUPS_FLAVOR $EUPS_FLAVOR', 'loadLSST.csh', '# setenv EUPS_FLAVOR')
-insertLine('    export EUPS_FLAVOR=$EUPS_FLAVOR', 'loadLSST.sh', '# export EUPS_FLAVOR')
-
 insertLine('    setenv EUPS_PKGROOT m4_BASEURL', 'loadLSST.csh', '# setenv EUPS_PKGROOT')
 insertLine('    export EUPS_PKGROOT=m4_BASEURL', 'loadLSST.sh', '# export EUPS_PKGROOT')
 
