@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Usage: sh prepnewinstall.sh [rootdir] [flavor]
+# Usage: sh newinstall.sh [rootdir]
 #
 m4_dnl
 m4_dnl Use the m4deploy to install this script
@@ -9,22 +9,15 @@ m4_changequote(^, ^)m4_dnl
 m4_dnl set -x
 #  Set up some initial environment variables
 #
-LSST_ROOT=$PWD
+LSST_HOME=$PWD
 if [ -n "$1" ]; then
-   LSST_ROOT=$1
+   LSST_HOME=$1
 fi
-
-EUPS_FLAVOR=`uname -s`
-if [ -n "$2" ]; then
-   EUPS_FLAVOR=$2
-fi
-export EUPS_FLAVOR
-export LSST_HOME=$LSST_ROOT/$EUPS_FLAVOR
+cd $LSST_HOME
 
 # Create the initial set of directories 
 #
-mkdir -p $LSST_HOME; cd $LSST_HOME
-mkdir -p external/pacman; cd external/pacman
+mkdir -p pacman; cd pacman
 
 # Download and install pacman
 #
@@ -44,7 +37,7 @@ cd $pacmanver
 csh -c "source setup.csh"
 source setup.sh
 cd $LSST_HOME
-source external/pacman/$pacmanver/setup.sh
+source pacman/$pacmanver/setup.sh
 
 # Initialize the distribution via a pacman script.  For one, define the 
 # LSST cache symbol
@@ -72,7 +65,7 @@ mv loadLSST.tmp loadLSST.sh
 
 # mark the eups we just installed as the "latest"
 #
-cd external/eups
+cd eups
 latest=`ls | sort -r | head -1`
 if [ ! -e latest ]; then
    ln -s $latest latest
