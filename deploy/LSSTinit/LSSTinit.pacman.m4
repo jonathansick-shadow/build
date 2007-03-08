@@ -1,9 +1,11 @@
 #
 #   LSSTInit:  ready a location for installing LSST packages
 #
+m4_changequote([, ])m4_dnl
+#
 packageName('LSSTinit')
 
-register('LSST', 'm4_BASEURL/pm', 'LSST DM System', 'http://www.lsstcorp.org', 'LSST Build Manager', 'rplante@ncsa.uiuc.edu')
+m4_include([PacmanRegister.m4])m4_dnl
 
 downloadUntar('m4_BASEURL/deploy/build/0.3/LSSTinit/LSSTinit.tar.gz')
 

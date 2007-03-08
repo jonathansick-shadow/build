@@ -8,7 +8,7 @@ version('m4_VERSION')
 m4_ifdef([m4_TAG], tag('m4_TAG'))m4_dnl
 
 envIsSet('EUPS_PATH')
-envIsSet('EUPS_FLAVOR')
+setenvTemp('EUPS_FLAVOR', 'if [[ -n "$EUPS_FLAVOR" ]]; then echo $EUPS_FLAVOR; else eups flavor; fi')
 
 setenvTemp('LSST_HOME', '$PWD')
 setenvTemp('LSST_BUILD', '$LSST_HOME/external/build')

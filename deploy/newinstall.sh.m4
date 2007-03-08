@@ -55,6 +55,9 @@ if [ $? != 0 ]; then
    echo "Failed to install EUPS"
    exit 1
 fi
+if [ -d "external" ]; then
+   \rm -rf external
+fi
 
 # Remove the annoying "Do not edit" messages from loadLSST.*
 #
@@ -72,9 +75,19 @@ if [ ! -e latest ]; then
 fi
 cd $LSST_HOME
 
+# create the flavor directory and initialize it for pacman
+#
 source eups/latest/bin/setups.sh
 flavor=`eups flavor`
 mkdir -p $flavor
+
+cd $flavor
+echo y | pacman -install m4_BASEURL/pm:LSSTflavor
+if [ $? != 0 ]; then
+   echo "Failed to initialize the flavor ($flavor) directory"
+   exit 1
+fi
+cd $LSST_HOME
 
 echo Initialization complete
 echo 
