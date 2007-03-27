@@ -1,0 +1,255 @@
+#! /bin/env python
+#
+import sys
+import os
+import os.path
+import re
+import textwrap
+import optparse as op
+
+# if not os.environ.has_key('EUPS_DIR'):
+#     print >> sys.stderr, "EUPS_DIR environment variable not set;"
+#     print >> sys.stderr, "  please load the LSST environment."
+#     sys.exit(1)
+
+sys.path.append(os.path.join(os.environ['EUPS_DIR'], "bin"))
+import eups
+
+def main():
+    
+#    try:
+        # note: cl will be global
+        (opts, args) = cl.parse_args()
+        args = map(lambda x: x.lower(), args)
+
+        if len(args) == 0:
+            showhelp()
+            sys.exit(1)
+        if opts.wanthelp:
+            showhelp(args)
+            sys.exit(0)
+
+        # factory code for handling operation
+        # cmds = { 'fetch' : Fetch, 'remove' : Remove }
+        cmd = None
+        for cmdname in cmds:
+            if cmdname.startswith(args[0]):
+                cmd = cmds[cmdname]
+                break
+
+        if cmd is None:
+            if not opts.quiet:
+                print >> sys.stderr, cl.prog + ": unrecognized command", args[0]
+            sys.exit(1)
+        cmd = cmd(cl)
+            
+        # command will exit itself
+        cmd.run()
+
+#    except Exception, e:
+#        print >> sys.stderr, "Failure:", str(e)
+
+def showhelp(args = None):
+    if args is None or len(args) < 1 or args[0] not in cmds.keys():
+        cl.print_help()
+        print 
+        print fmtCmds()
+    else:
+        print cmds[args[0]].usage % (cl.prog, args[0])
+        print
+        print textwrap.fill(textwrap.dedent(cmds[args[0]].__doc__).strip(), 78)
+        print
+        print cl.format_option_help()
+    
+def fmtCmds():
+    out = ["Commands:"]
+    for cmd in cmds:
+        what = ("\n" + " " * 19).join(textwrap.wrap(cmdbrief(cmds[cmd]),60))
+        out.append("  %-13s  %s" % (cmd, what))
+    out.append("")
+    out.append("Use -h to get more info on a specific command")
+    return "\n".join(out)
+
+def cmdbrief(cmd):
+    """return the brief definition of a commands functionality.  This
+    returns the @@brief tag value, if it exists, or the first sentence from
+    the command's documentation string.
+    """
+    doc = textwrap.dedent(cmd.__doc__)
+    brief = doc.find('@brief')
+    if brief < 0:  brief = doc.find('\brief')
+    if brief >= 0:  doc = doc[brief+6:]
+    doc = doc.strip()
+
+    brief = doc.find('.  ')
+    if brief < 0:  brief = doc.find('.')
+    if brief >= 0:  doc = doc[:brief+1]
+
+    return " ".join(textwrap.wrap(doc, 77))
+
+class Cmd:
+    """a parent class for handling a sub-command"""
+    def __init__(self, cmdline):
+        self.prog = cmdline.prog
+        (self.opts, self.args) = cl.parse_args()
+        self.name = self.args[0]
+
+    def _ignoringExtraArgs(self, maxArgCount):
+        """print a message about ignoring extra arguments.
+        @param maxArgCount  the maximum number of arguments needed after the
+                              sub-command
+        """
+        if len(self.args) > maxArgCount+1 and not self.opts.quiet:
+            print >> sys.stderr, \
+                  "%s: Ignoring extra arguments: %s" %  \
+                  (self.name, " ".join(arg[maxArgCount+1:]))
+
+    def _cmdargs(self):
+        self._ignoringExtraArgs(0)
+        return ()
+
+    def die(self, message):
+        if not self.opts.quiet: print >> sys.stderr, self.prog + ":", message
+        sys.exit(1)
+
+    def run(self):
+        raise Exception("No run implementation provided")
+
+class Fetch(Cmd):
+    """
+    Download and install a distribution package from the LSST software
+    server. and install it locally into the primary software stack (i.e. 
+    under the first directory in the EUPS_PATH).  If version is omitted,
+    the version considered current will be returned.
+    """
+
+    usage = "usage: %s [ -hsvn ] %s package [ version ]"
+
+    def _cmdargs(self, args):
+        self._ignoringExtraArgs(2)
+        pkg = None
+        ver = None
+        if len(args) > 1: pkg = args[1]
+        if len(args) > 2: ver = args[2]
+        return (pkg, ver)
+
+    def run(self):
+        cmd = "eups distrib -i".split()
+        (pkg, version) = self._cmdargs(self.args)
+
+        if pkg is None:
+            self.die(self.name + ": No package name given")
+        if version is None:
+            # we will assume that the current version is wanted and 
+            # it and all its dependents should be set locally as current
+            cmd.append("-C")
+
+        cmd.append(pkg)
+        if version is not None:  cmd.append(version)
+
+        if not self.opts.quiet: print >> sys.stderr, " ".join(cmd)
+        if self.opts.verbose > 0:
+            if version is not None:
+                print >> sys.stderr, \
+                          ("Use 'eups declare -c %s %s' to set this " + 
+                           "as your current version.") % (pkg, version)
+        if not self.opts.quiet: print >> sys.stderr
+
+        # run the command and exit
+        if not self.opts.noop: os.execvp(cmd[0], cmd)
+        sys.exit(0);
+
+class Remove(Cmd):
+    """
+    remove a previously downloaded package.  The package need not have been
+    installed successfully for this command to be effective.  Use -v to 
+    actually see the commands executed run this command.
+    """
+
+    usage = "usage: %s [ -hsvn ] %s package version"
+
+    def _cmdargs(self, args):
+        self._ignoringExtraArgs(2)
+        pkg = None
+        ver = None
+        if len(args) > 1: pkg = args[1]
+        if len(args) > 2: ver = args[2]
+        return (pkg, ver)
+
+    def run(self):
+        cmd = "pacman -remove LSST:%s-%s"
+        (pkg, version) = self._cmdargs(self.args)
+
+        if pkg is None:
+            self.die(self.name + ": No package name given")
+
+        if version is None:
+            # we need the version; show which ones we know about
+            vers = eups.list(pkg)
+            if not self.opts.quiet:
+                if len(vers) > 1:
+                    thevers = ", ".join(map(lambda x: x[0], vers))
+                else:
+                    thevers = "(none found in EUPS)"
+                print >> sys.stderr, "Not sure which version to remove:", \
+                      thevers
+                print >> sys.stderr, "Rerun this command, specifying the",\
+                      "version to delete after the package name."
+            self.die("aborting");
+
+        cmd = cmd % (pkg, version)
+
+        # this has be done from the LSST_PKG directory
+        if not os.environ.has_key('EUPS_PATH'):
+            self.die(self.name + ": EUPS_PATH environment variable not set;" +
+                "\n  please load the LSST environment")
+        cwd = re.sub(r':.*$','', os.environ['EUPS_PATH'])
+        cwd += "/" + eups.flavor()
+        os.environ["PWD"] = cwd
+
+        # if desired, print the commands that can be used to do this manually
+        if not self.opts.quiet:
+            print >> sys.stderr, "Removing %s %s..." % (pkg, version)
+        if self.opts.verbose > 0:
+            print >> sys.stderr, "cd $LSST_PKGS"
+            print >> sys.stderr, cmd
+        if not self.opts.quiet:
+            print >> sys.stderr
+            
+        # run the command and exit
+        stat = 0
+        if not self.opts.noop:
+            cmdout = os.popen("cd %s; %s 2>&1" % (os.environ['PWD'], cmd), 'r')
+            for line in cmdout:
+                if not self.opts.quiet:
+                    print >> sys.stderr, line.rstrip()
+            stat = cmdout.close()
+            if stat is None:
+                stat = 0
+            else:
+                print >> sys.stderr, \
+                      "warning: possible problem running '%s'" % cmd
+
+        sys.exit(stat / 256)
+
+cmds = { 'fetch' : Fetch, 'remove' : Remove }
+
+# set up the command line parser
+cl = op.OptionParser(usage="%prog [ -qvh ] args", conflict_handler="resolve",
+                     description="short-cut commands for installing packages",
+                     prog=sys.argv[0])
+cl.add_option("-q", "--quiet",
+              action="store_true", dest="quiet",
+              help="do not show user commands being run")
+cl.add_option("-v", "--verbose",
+              action="store_const", const=1, dest="verbose", default=0,
+              help="print extra messages about what's going on.")
+cl.add_option("-n", "--noop",
+              action="store_true", dest="noop", default=False,
+              help="do not actually execute command, just talk about it.")
+cl.add_option("-h", "--help",
+              action="store_true", dest="wanthelp", default=False,
+              help="print this help information")
+
+if __name__ == '__main__':
+    main()
