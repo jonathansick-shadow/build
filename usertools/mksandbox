@@ -1,0 +1,29 @@
+#! /bin/sh
+#
+# create a directory tree for installing packages.
+#
+# usage: mksandbox [ sandbox_dir ]
+#
+if [ -n "$1" ]; then
+    echo "Creating a sandbox at $1"
+    mkdir -p $1
+    cd $1
+fi
+
+if [ ! -w "$PWD" ]; then
+    echo "Unable to write to sandbox directory ($PWD)"
+    echo "Aborting."
+    exit 1
+fi
+
+mkdir -p ups_db
+
+if [ -z "$EUPS_DIR" ]; then
+    echo "Warning: EUPS is not loaded; skipping the creation of flavor" \
+         "directory"
+else 
+    flavor=`eups flavor`
+    mkdir -p $flavor
+fi
+
+

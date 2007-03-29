@@ -6,6 +6,7 @@ import os.path
 import re
 import textwrap
 import optparse as op
+import urllib2
 
 # if not os.environ.has_key('EUPS_DIR'):
 #     print >> sys.stderr, "EUPS_DIR environment variable not set;"
@@ -17,37 +18,33 @@ import eups
 
 def main():
     
-#    try:
-        # note: cl will be global
-        (opts, args) = cl.parse_args()
-        args = map(lambda x: x.lower(), args)
+    # note: cl will be global
+    (opts, args) = cl.parse_args()
+    args = map(lambda x: x.lower(), args)
 
-        if len(args) == 0:
-            showhelp()
-            sys.exit(1)
-        if opts.wanthelp:
-            showhelp(args)
-            sys.exit(0)
+    if len(args) == 0:
+        showhelp()
+        sys.exit(1)
+    if opts.wanthelp:
+        showhelp(args)
+        sys.exit(0)
 
-        # factory code for handling operation
-        # cmds = { 'fetch' : Fetch, 'remove' : Remove }
-        cmd = None
-        for cmdname in cmds:
-            if cmdname.startswith(args[0]):
-                cmd = cmds[cmdname]
-                break
+    # factory code for handling operation
+    # cmds = { 'fetch' : Fetch, 'remove' : Remove }
+    cmd = None
+    for cmdname in cmds:
+        if cmdname.startswith(args[0]):
+            cmd = cmds[cmdname]
+            break
 
-        if cmd is None:
-            if not opts.quiet:
-                print >> sys.stderr, cl.prog + ": unrecognized command", args[0]
-            sys.exit(1)
-        cmd = cmd(cl)
-            
-        # command will exit itself
-        cmd.run()
-
-#    except Exception, e:
-#        print >> sys.stderr, "Failure:", str(e)
+    if cmd is None:
+        if not opts.quiet:
+            print >> sys.stderr, cl.prog + ": unrecognized command", args[0]
+        sys.exit(1)
+    cmd = cmd(cl, cmdname)
+        
+    # command will exit itself
+    cmd.run()
 
 def showhelp(args = None):
     if args is None or len(args) < 1 or args[0] not in cmds.keys():
@@ -67,7 +64,8 @@ def fmtCmds():
         what = ("\n" + " " * 19).join(textwrap.wrap(cmdbrief(cmds[cmd]),60))
         out.append("  %-13s  %s" % (cmd, what))
     out.append("")
-    out.append("Use -h to get more info on a specific command")
+    out.append("Use -h with the command name to get more info on a specific " +
+               "command")
     return "\n".join(out)
 
 def cmdbrief(cmd):
@@ -89,10 +87,12 @@ def cmdbrief(cmd):
 
 class Cmd:
     """a parent class for handling a sub-command"""
-    def __init__(self, cmdline):
+    def __init__(self, cmdline, cmdname=None):
         self.prog = cmdline.prog
         (self.opts, self.args) = cl.parse_args()
-        self.name = self.args[0]
+        self.name = cmdname
+        if self.name is None or len(self.name) == 0:
+            self.name = self.args[0]
 
     def _ignoringExtraArgs(self, maxArgCount):
         """print a message about ignoring extra arguments.
@@ -232,7 +232,83 @@ class Remove(Cmd):
 
         sys.exit(stat / 256)
 
-cmds = { 'fetch' : Fetch, 'remove' : Remove }
+
+class GetTable(Cmd):
+    """
+    Update the EUPS table file from the software server for a given package.
+    This is mainly used for retrieving updated table files for 3rd-party
+    packages. 
+    """
+
+    usage = "usage: %s [ -hsvn ] %s package [ version ]"
+
+    def _cmdargs(self, args):
+        self._ignoringExtraArgs(2)
+        pkg = None
+        ver = None
+        if len(args) > 1: pkg = args[1]
+        if len(args) > 2: ver = args[2]
+        return (pkg, ver)
+
+    def run(self):
+        cmd = "curl -o".split()
+        (pkg, version) = self._cmdargs(self.args)
+
+        if pkg is None:
+            self.die(self.name + ": No package name given")
+        if not os.environ.has_key("EUPS_PKGROOT"):
+            self.die("EUPS_PKGROOT not set; please load the LSST environment")
+
+        # get information from the server about package
+        (curver, subdir, svrdir) = self.getCurrentVerData(pkg)
+
+        if version is None:
+            # we will assume that the table file for the current version
+            # is wanted; look this version up.  
+            version = curver
+
+        cmd = "curl -o %s/"
+        if len(subdir) > 0:  cmd += "%s/" % subdir
+        cmd += "%s/%s/ups/%s.table %%s/" % (pkg, version, pkg)
+#        cmd += " %s/" % os.environ["EUPS_PKGROOT"]
+        if len(subdir) > 0:  cmd += "%s/" % subdir
+        if len(svrdir) > 0:
+            if curver != version:
+                svrdir = re.sub('/%s/' % curver, '/%s/' % version, svrdir)
+            cmd += svrdir
+        else:
+            cmd += "%s/%s" % (pkg, version)
+        cmd += "/%s.table" % pkg
+
+        if not self.opts.quiet:
+            print >> sys.stderr, cmd % ("$LSST_PKGS", "$EUPS_PKGROOT")
+
+        if not self.opts.noop:
+            lsst_pkgs = "%s/%s" % (os.environ["LSST_HOME"], eups.flavor())
+            cmd = cmd % (lsst_pkgs, os.environ["EUPS_PKGROOT"])
+            cmd = cmd.split()
+            os.execvp(cmd[0], cmd)
+        sys.exit(0)
+
+    def getCurrentVerData(self, pkg):
+        pkgpat = re.compile(r'%s\s' % pkg)
+
+        cururl = "%s/current.list" % os.environ["EUPS_PKGROOT"]
+        curlist = urllib2.urlopen(cururl)
+        desc = filter(lambda x: pkgpat.match(x), curlist.readlines())
+        curlist.close()
+        
+        if len(desc) == 0:
+            self.die(pkg + ": unknown package")
+        desc = desc[0].split()
+        if len(desc) <= 2:
+            self.die(pkg + ": current version not set")
+        if len(desc) <= 3:  desc.append('')
+        if len(desc) <= 4:  desc.append('')
+        return (desc[2], desc[3], desc[4])
+        
+
+cmds = { 'fetch' : Fetch, 'remove' : Remove, 'gettable': GetTable }
 
 # set up the command line parser
 cl = op.OptionParser(usage="%prog [ -qvh ] args", conflict_handler="resolve",

@@ -1,0 +1,22 @@
+# 
+#
+Import("env")
+import os
+
+if ARGUMENTS.has_key('build_dir'):
+    build_dir = ARGUMENTS['build_dir']
+else:
+    build_dir = os.environ["PWD"]
+
+serverbaseurl = 'http://lsstdev.ncsa.uiuc.edu/pkgs'
+macrodir = build_dir + '/buildtemplates/macros'
+m4flags = "-DTHEBASEURL=%s -DMACRODIR=%s" % (serverbaseurl, macrodir)
+print "m4flags:", m4flags
+
+env.M4("m4deploy", "m4deploy.m4", M4FLAGS=m4flags)
+
+for cmd in "lsstpkg mksandbox mkmanifest setallcurrent.sh m4deploy".split():
+    env.Command("../bin/"+cmd, cmd, [Copy('$TARGET', '$SOURCE'),
+                                     Chmod('$TARGET', 0755)])
+
+
