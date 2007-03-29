@@ -27,6 +27,7 @@ env['IgnoreFiles'] = r"(~$|\.pyc$|^\.svn$|\.o$)"
 
 Alias("install", env.Install(env['prefix'], "buildtemplates"))
 Alias("install", env.Install(env['prefix'], "bin"))
+Alias("install", env.Install(env['prefix'], "doc"))
 Alias("install", env.InstallEups(env['prefix'] + "/ups", glob.glob("ups/*.table")))
 
 scons.CleanTree(r"*~ core *.so *.os *.o")
