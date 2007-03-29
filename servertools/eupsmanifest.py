@@ -414,6 +414,16 @@ class Loader:
         finally:
             cf.close()
 
+        # if we didn't find it in the current file, try to guess some values
+        if parts[0] != pkgname:
+            parts = [pkgname, 'Linux', '']
+            path = os.path.join(self.basedir,pkgname)
+            if not os.path.exists(path):
+                # try the external directory
+                parts.append('external')
+                path = os.path.join(self.basedir,'external',pkgname)
+                if not os.path.exists(path): parts = []
+
         out = []
         if len(parts) < 3 or parts[0] != pkgname:
             return out
@@ -443,7 +453,8 @@ class Loader:
         """
         lu = self.lookupCurrent(pkgname)
         if version is None:
-            if len(lu) == 0:
+            if len(lu) == 0 or len(lu[0]) == 0:
+                # we have no way of determining which verison to get; bail.
                 return None
             version = lu[0]
         
@@ -453,11 +464,14 @@ class Loader:
             pkgpath = lu[1]            
             file = os.path.join(file, pkgpath)
 
-        if len(lu[2]) == 0:
-            # form default package directory 
-            lu[2] = os.path.join(pkgname, version)
+        # determine package directory 
+        pkgdir = os.path.join(pkgname, version)  # default
+        if len(lu) > 2 and len(lu[2]) > 0:
+            # override
+            pkgdir = lu[2]
         
-        file = os.path.join(file, lu[2])
+        file = os.path.join(file, pkgdir)
+
         if flavor is not None and flavor != '' and flavor != "generic":
             file = os.path.join(file, flavor)
 
