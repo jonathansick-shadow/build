@@ -13,8 +13,3 @@ contents:
   usertools            tools which can be executed directly by users
                          wil making a package LSST compliant.  
 
-Note the following caveats for this version of the package:
-  o  this package can only be installed manually at this time.
-  o  it is deprecated by the scons-based version.  
-
-

@@ -8,9 +8,14 @@ version('m4_VERSION')
 m4_ifdef([m4_TAG], tag('m4_TAG'))m4_dnl
 
 envIsSet('EUPS_PATH')
-setenvTemp('EUPS_FLAVOR', 'if [[ -n "$EUPS_FLAVOR" ]]; then echo $EUPS_FLAVOR; else eups flavor; fi')
+setenvShellTemp('EUPS_FLAVOR', 'if [[ -n "$EUPS_FLAVOR" ]]; then echo $EUPS_FLAVOR; else eups flavor; fi')
 
 setenvTemp('LSST_HOME', '$PWD')
 setenvTemp('LSST_BUILD', '$LSST_HOME/external/build')
 shell('mkdir -p $LSST_BUILD')
 
+m4_define([m4_ENSURE_SCONS], setenvShellTemp('SCONSUTILS_DIR', 'export SHELL=sh; source $EUPS_DIR/bin/setups.sh; setup scons; echo $SCONSUTILS_DIR')
+envIsSet('SCONSUTILS_DIR')
+echo('Using SCONSUTILS_DIR=$SCONSUTILS_DIR')
+shell('[[[ -d "$SCONSUTILS_DIR" ]]]'))m4_dnl
+m4_define([m4_SCONS_BUILD], shell('export SHELL=sh; source $EUPS_DIR/bin/setups.sh; setup build; setup -M ups/m4_PACKAGE.table; scons install'))m4_dnl
