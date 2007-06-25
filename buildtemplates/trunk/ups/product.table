@@ -1,0 +1,29 @@
+# Uncomment, edit, and add lines to support this package under EUPS,
+# then rename this file to <product>.table, where <product> is the
+# name of the product.
+#
+# List the products we need to setup
+# 
+# setupRequired(python)
+
+# Update environment path variables.  Note that you can add elements to the 
+# beginning (envPrepend) or the end (envAppend) of the list.
+#
+# If your package has executables, add the bin directory to the
+# command path:
+#
+# envPrepend(PATH, ${PRODUCT_DIR}/bin)
+
+# If your package has python modules, add the python directory to the
+# PYTHONPATH 
+#
+# envAppend(PYTHONPATH, ${PRODUCT_DIR}/python) 
+
+# LD_LIBRARY_PATH allows applications to find this package's shared
+# libraries.
+#
+# Unless you understand the use of DYLD_LIBRARY_PATH, it is best to
+# set it the same way as LD_LIBRARY_PATH
+#
+# envAppend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
+# envAppend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)

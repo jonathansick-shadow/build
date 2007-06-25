@@ -1,0 +1,15 @@
+# 
+#
+Import("env")
+import os
+import sys
+
+basedirflag = "-DBASEDIR=%s -DTHEVERSION=%s" % (env['prefix'], env['version'])
+env.M4("pmdeploy", "pmdeploy.m4", M4FLAGS=basedirflag)
+env.M4("mkserver", "mkserver.m4", M4FLAGS=basedirflag)
+
+for cmd in "pmdeploy mkserver".split():
+    env.Command("../bin/"+cmd, cmd, [Copy('$TARGET', '$SOURCE'),
+                                     Chmod('$TARGET', 0755)])
+
+
