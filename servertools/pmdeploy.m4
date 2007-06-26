@@ -51,8 +51,8 @@ if [[ -z "$files" ]]; then
 fi
 
 for file in $files; do
-    pkgname=`grep '\[[m4_PACKAGE\]]' $file | sed -e 's/^.*\[[m4_PACKAGE\]],\s*\][//' -e 's/\]].*//'`
-    version=`grep '\[[m4_VERSION\]]' $file | sed -e 's/^.*\[[m4_VERSION\],\s*\][//' -e 's/\]].*//'`
+    pkgname=`grep '\[[m4_PACKAGE\]]' $file | sed -e 's/^.*\[[m4_PACKAGE\]],\s*\[[//' -e 's/\]].*//'`
+    version=`grep '\[[m4_VERSION\]]' $file | sed -e 's/^.*\[[m4_VERSION\]],\s*\[[//' -e 's/\]].*//'`
     if [[ -n "$informative" ]]; then
         echo m4deploy $file \> $pkgs/pm/$pkgname-$version.pacman
     fi
