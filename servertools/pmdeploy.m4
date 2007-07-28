@@ -8,6 +8,9 @@ m4deploy=m4deploy
 pkgs=BASEDIR/pkgs
 pm=$PKG/pm
 informative=1
+m4opts=
+baseurl=
+macrodir=
 
 usage() {
     echo "Usage: $0 [[-h]] [[-p pkgsdir]]"
@@ -21,6 +24,10 @@ help() {
     echo "Options:"
     echo "  -p pkgsdir   the packages directory; pacman scripts installed into"
     echo "               pkgsdir/pm"
+    echo "  -b baseurl   the server's base URL pointing to the packages"
+    echo "                 directory (passed to m4deploy)"
+    echo "  -m macrodir  the full path to the LSST m4 macro directory (passed "
+    echo "                 to m4deploy)"
     echo "  -q           quiet; don't print informative messages"
     echo "  -h help      print this help"
 }
@@ -33,6 +40,12 @@ while [[ $# -gt 0 ]]; do
 
         -q) informative="" ;;
 
+        -b) [shift]
+            baseurl=$1 ;;
+
+        -m) [shift]
+            macrodir=$1 ;;
+
         -p) [shift] 
             pkgs=$1 ;;
 
@@ -41,7 +54,19 @@ while [[ $# -gt 0 ]]; do
     [shift]
 done
 
-files=`find . -name pacman.m4 -print`
+if [[ -n "$baseurl" ]]; then
+    m4opts="$m4opts -b $baseurl"
+fi
+if [[ -n "$macrodir" ]]; then
+    m4opts="$m4opts -m $macrodir"
+fi
+if [[ ! -d "$pkgs" ]]; then
+    echo "$0: $pkgs: Packages directory does not exist"
+    exit 1
+fi
+mkdir -p "$pkgs/pm"
+
+files=`find . -name \*pacman.m4 -print`
 
 if [[ -z "$files" ]]; then
     if [[ -n "$informative" ]]; then
@@ -51,11 +76,25 @@ if [[ -z "$files" ]]; then
 fi
 
 for file in $files; do
-    pkgname=`grep '\[[m4_PACKAGE\]]' $file | sed -e 's/^.*\[[m4_PACKAGE\]],\s*\[[//' -e 's/\]].*//'`
-    version=`grep '\[[m4_VERSION\]]' $file | sed -e 's/^.*\[[m4_VERSION\]],\s*\[[//' -e 's/\]].*//'`
-    if [[ -n "$informative" ]]; then
-        echo m4deploy $file \> $pkgs/pm/$pkgname-$version.pacman
+    if ( echo $file | grep -q '/pacman.m4$' ); then
+        pkgname=`grep 'm4_define(.m4_PACKAGE.' $file | sed -e 's/^.*m4_PACKAGE.,\s*.//' -e 's/[[^a-zA-Z0-9]].*//'`
+        version=`grep 'm4_define(.m4_VERSION.' $file | sed -e 's/^.*m4_VERSION.,\s*.//' -e 's/\].*//' -e "s/'.*//"`
+        if [[ -z "$pkgname" ]]; then
+            echo "Unable to determine package name for $file"
+            exit 1
+        fi
+        out="$pkgs/pm/$pkgname"
+        if [[ -n "$version" ]]; then
+            out=$out"-$version"
+        fi
+        out="$out.pacman"
+    else
+        out=`echo $file | sed -e 's/^.*\///' -e 's/\.m4$//'`
+        out="$pkgs/pm/$out"
     fi
-#    m4deploy $file > $pkgs/$pkgname-$version.pacman
+    if [[ -n "$informative" ]]; then
+        echo m4deploy$m4opts $file \> $out
+    fi
+    m4deploy $m4opts $file > $out
 done
 

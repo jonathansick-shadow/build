@@ -12,7 +12,7 @@ opts.AddOptions(('pkgsurl', 'the base url for the software server',
 
 env = scons.makeEnv("build",
                     r"$HeadURL$",
-                    eups_product_path='deploy/build',
+                    eups_product_path='%P/%f/deploy/%f/%v/%p/%v',
                     options=opts)
 #
 # Libraries that I need to link things.  This should be handled better
@@ -46,6 +46,7 @@ Alias("server", env.Install(env['prefix'], "usertools"))
 Alias("server", env.Install(env['prefix'], "servertools"))
 Alias("server", env.Install(env['prefix'], "deploy"))
 Alias("server", env.Install(env['prefix'], "SConstruct"))
+Alias("server", env.Install(env['prefix'], "ups"))
 
 scons.CleanTree(r"*~ core *.so *.os *.o")
 

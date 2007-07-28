@@ -5,11 +5,12 @@
 #         -DMACRODIR=/var/www/html/pkgs/deploy/build/0.3/buildtemplates/macros
 #       m4deploy.sh.m4 > m4deploy.sh
 #
+changequote(`[', `]')dnl
 macrodir=MACRODIR
 baseurl=THEBASEURL
 
 usage() {
-    echo "Usage: $0 [-m macrodir] [-b baseurl]"
+    echo "Usage: $0 [-m macrodir] [-b baseurl] infile"
 }    
 
 help() {
@@ -23,7 +24,7 @@ help() {
     echo "  -h help      print this help"
 }
 
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
     case $1 in
         -h) help; exit 0 ;;
 
@@ -31,20 +32,22 @@ while [ $# -gt 0 ]; do
 
         -q) informative="" ;;
 
-        -b) shift 
+        -b) [shift]
             baseurl=$1 ;;
 
-        -m) shift 
+        -m) [shift]
             macrodir=$1 
-            if [ ! -d "$macrodir"]; then
+            if [[ ! -d "$macrodir" ]]; then
                 echo "$0: $macrodir: directory not found"
                 exit 1
             fi
             ;;
 
-        *) echo "Unrecognized argument: $1"; usage; exit 1 ;;
+        -*) echo "Unrecognized argument: $1"; usage; exit 1 ;;
+
+        *)  break
     esac
-    shift
+    [shift]
 done
 
 exec m4 -P --include=$macrodir "-Dm4_BASEURL=$baseurl" $*
