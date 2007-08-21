@@ -12,7 +12,7 @@ opts.AddOptions(('pkgsurl', 'the base url for the software server',
 
 env = scons.makeEnv("build",
                     r"$HeadURL$",
-                    eups_product_path='%P/%f/deploy/%f/%v/%p/%v',
+                    eups_product_path='%P/%f/deploy/%p/%v',
                     options=opts)
 #
 # Libraries that I need to link things.  This should be handled better

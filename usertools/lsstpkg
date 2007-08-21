@@ -16,6 +16,8 @@ import urllib2
 sys.path.append(os.path.join(os.environ['EUPS_DIR'], "bin"))
 import eups
 
+pmnotfound = re.compile(r"Package \[[^\]]*\] found in \[[^\]]*\]")
+
 def main():
     
     # note: cl will be global
@@ -52,7 +54,7 @@ def showhelp(args = None):
         print 
         print fmtCmds()
     else:
-        print cmds[args[0]].usage % (cl.prog, args[0])
+        print cmds[args[0]].usage % (os.path.basename(cl.prog), args[0])
         print
         print textwrap.fill(textwrap.dedent(cmds[args[0]].__doc__).strip(), 78)
         print
@@ -85,6 +87,50 @@ def cmdbrief(cmd):
 
     return " ".join(textwrap.wrap(doc, 77))
 
+class Error(Exception):
+    def __init__(self, message):
+        self.message = message
+
+def list(product, version = "", dbz = "", flavor = ""):
+    """Return a list of declared versions of a product; if the
+    version is specified, just return the properties of that version.
+
+    This gets around a bug in the eups module.
+
+    The return value for each product is a list:
+       (version, database, directory, isCurrent, isSetup)
+    """
+
+    opts = ""
+    if dbz:
+        opts += " --select-db %s" % (dbz)
+    if flavor:
+        opts += " --flavor %s" % (flavor)
+
+    result = []
+    for info in os.popen("eups list %s --verbose %s %s" % (opts, product, version)).readlines():
+        oneResult = re.findall(r"\S+", info)
+
+        if len(oneResult) < 4: oneResult += [False]
+        if len(oneResult) < 5: oneResult += [False]
+
+        if oneResult[3] == "Setup" or oneResult[4] == "Setup":
+            oneResult[4] = True
+        else:
+            oneResult[4] = False
+            
+        if oneResult[3] == "Current":
+            oneResult[3] = True
+        else:
+            oneResult[3] = False
+            
+        result += [oneResult]
+
+        if version:
+            return oneResult
+        
+    return result
+
 class Cmd:
     """a parent class for handling a sub-command"""
     def __init__(self, cmdline, cmdname=None):
@@ -113,17 +159,38 @@ class Cmd:
         sys.exit(1)
 
     def run(self):
-        raise Exception("No run implementation provided")
+        raise Error("No run implementation provided")
 
+    def getCurrentVerData(self, pkg):
+        """consult the software server and return the data describing the
+        current verison of a given package.
+        @param pkg   the package to inquire about
+        """
+        pkgpat = re.compile(r'%s\s' % pkg)
+
+        cururl = "%s/current.list" % os.environ["EUPS_PKGROOT"]
+        curlist = urllib2.urlopen(cururl)
+        desc = filter(lambda x: pkgpat.match(x), curlist.readlines())
+        curlist.close()
+        
+        if len(desc) == 0:
+            raise Error(pkg + ": unknown package")
+        desc = desc[0].split()
+        if len(desc) <= 2:
+            raise Error(pkg + ": current version not set")
+        if len(desc) <= 3:  desc.append('')
+        if len(desc) <= 4:  desc.append('')
+        return (desc[2], desc[3], desc[4])
+        
 class Fetch(Cmd):
     """
     Download and install a distribution package from the LSST software
-    server. and install it locally into the primary software stack (i.e. 
+    server and install it locally into the primary software stack (i.e. 
     under the first directory in the EUPS_PATH).  If version is omitted,
     the version considered current will be returned.
     """
 
-    usage = "usage: %s [ -hsvn ] %s package [ version ]"
+    usage = "usage: %s [ -hsvncN ] %s package [ version ]"
 
     def _cmdargs(self, args):
         self._ignoringExtraArgs(2)
@@ -134,22 +201,49 @@ class Fetch(Cmd):
         return (pkg, ver)
 
     def run(self):
-        cmd = "eups distrib -i".split()
+        cmd = "eups distrib -i -C".split()
         (pkg, version) = self._cmdargs(self.args)
 
         if pkg is None:
             self.die(self.name + ": No package name given")
-        if version is None:
-            # we will assume that the current version is wanted and 
-            # it and all its dependents should be set locally as current
-            cmd.append("-C")
 
         cmd.append(pkg)
-        if version is not None:  cmd.append(version)
+        if version is not None:
+            cmd.append(version)
+
+        if version is None:
+            if self.opts.docurrent is None:
+                self.opts.docurrent = True
+                
+            # predict the version we'll get if not specified
+            try:
+                version = self.getCurrentVerData(pkg)[0]
+            except Error:
+                pass
+
+        # should this new package be made current?
+        # Note: once version requirements are built into eups, this will need
+        # to change
+        if not self.opts.docurrent:
+            curver = eups.current(pkg);
+
+            # this gets around a bug in eups.current()
+            if curver == 'No': curver = ''
+            
+            if len(curver) > 0:
+                # return the previous current version to its special status
+                cmd.extend((" && eups declare -c %s %s" %
+                            (pkg, curver)).split())
+            elif self.opts.docurrent is not None:
+                # there was no previous current, so try to unset the current
+                if version is not None:
+                    cmd.extend((" && eups undeclare --current %s %s" %
+                                (pkg, version)).split())
 
         if not self.opts.quiet: print >> sys.stderr, " ".join(cmd)
         if self.opts.verbose > 0:
-            if version is not None:
+            if not self.opts.docurrent:
+                if version is None: version = "<version>"
                 print >> sys.stderr, \
                           ("Use 'eups declare -c %s %s' to set this " + 
                            "as your current version.") % (pkg, version)
@@ -164,9 +258,12 @@ class Remove(Cmd):
     remove a previously downloaded package.  The package need not have been
     installed successfully for this command to be effective.  Use -v to 
     actually see the commands executed run this command.
+
+    The --current (-c) and --not-current (-N) options are ignored by this
+    command.
     """
 
-    usage = "usage: %s [ -hsvn ] %s package version"
+    usage = "usage: %s [ -hsvncN ] %s package version"
 
     def _cmdargs(self, args):
         self._ignoringExtraArgs(2)
@@ -185,7 +282,7 @@ class Remove(Cmd):
 
         if version is None:
             # we need the version; show which ones we know about
-            vers = eups.list(pkg)
+            vers = list(pkg)
             if not self.opts.quiet:
                 if len(vers) > 1:
                     thevers = ", ".join(map(lambda x: x[0], vers))
@@ -197,38 +294,87 @@ class Remove(Cmd):
                       "version to delete after the package name."
             self.die("aborting");
 
+        # get the directory where it is actually installed so we can be sure
+        # to get it deleted
+        instdir = list(pkg, version)
+        if len(instdir) > 1:
+            instdir = instdir[2]
+        else:
+            instdir = None
+
         cmd = cmd % (pkg, version)
 
-        # this has be done from the LSST_PKG directory
+        # this has be done from the LSST_PKGS directory
         if not os.environ.has_key('EUPS_PATH'):
             self.die(self.name + ": EUPS_PATH environment variable not set;" +
                 "\n  please load the LSST environment")
-        cwd = re.sub(r':.*$','', os.environ['EUPS_PATH'])
-        cwd += "/" + eups.flavor()
-        os.environ["PWD"] = cwd
+        eupspath = re.sub(r':.*$','', os.environ['EUPS_PATH'])
+        flavpath = "%s/%s" % (eupspath, eups.flavor())
 
-        # if desired, print the commands that can be used to do this manually
-        if not self.opts.quiet:
-            print >> sys.stderr, "Removing %s %s..." % (pkg, version)
-        if self.opts.verbose > 0:
-            print >> sys.stderr, "cd $LSST_PKGS"
-            print >> sys.stderr, cmd
-        if not self.opts.quiet:
-            print >> sys.stderr
-            
-        # run the command and exit
+        # figure out the most likely installation location.  for eups 0.7.31
+        # or earlier, this will be $LSST_PKGS; otherwise it should be LSST
+        # the first element in EUPS_PATH.
+        dirs = []
+        if os.path.exists("%s/o..pacman..o" % flavpath):
+            dirs.append(flavpath)
+        if os.path.exists("%s/o..pacman..o" % eupspath):
+            dirs.append(eupspath)
+        if (len(dirs) == 0 and os.environ.has_key('PWD') and
+            os.path.exists("%s/o..pacman..o" % os.environ["PWD"])):
+            dirs.append(os.environ["PWD"])
+
         stat = 0
-        if not self.opts.noop:
-            cmdout = os.popen("cd %s; %s 2>&1" % (os.environ['PWD'], cmd), 'r')
-            for line in cmdout:
+        success = False
+        if len(dirs) == 0:
+            print >> sys.stderr, \
+                "Warning: unable to locate pacman database (o..pacman..o)."
+        else: 
+            success = True
+            for dir in dirs:
+                # if desired, print the commands that can be used to do this
+                # manually
                 if not self.opts.quiet:
-                    print >> sys.stderr, line.rstrip()
-            stat = cmdout.close()
-            if stat is None:
-                stat = 0
-            else:
-                print >> sys.stderr, \
-                      "warning: possible problem running '%s'" % cmd
+                    print >> sys.stderr, "Removing %s %s..." % (pkg, version)
+                if self.opts.verbose > 0:
+                    print >> sys.stderr, "cd", dir
+                    print >> sys.stderr, cmd
+                if not self.opts.quiet:
+                    print >> sys.stderr
+            
+                # run the command and exit
+                if not self.opts.noop:
+                    cmdout = os.popen("cd %s && %s 2>&1" % (dir, cmd),'r')
+                    for line in cmdout:
+                        if pmnotfound.match(line): success = False
+                        if not self.opts.quiet:
+                            print >> sys.stderr, line.rstrip()
+                    stat = cmdout.close()
+                    if stat is None:
+                        stat = 0
+                    else:
+                        success = False
+                        print >> sys.stderr, \
+                              "warning: possible problem running '%s'" % cmd
+
+                # if it looks like pacman removed the package, don't bother
+                # going on.
+                if success and not self.opts.noop:
+                    if not self.opts.quiet:
+                        print >> sys.stderr, ("Package %s %s removed from %s" % 
+                                              (pkg, version, dir))
+                    break
+
+        # now delete the actual installationn dir, if necessary
+        if instdir is not None and os.path.exists(instdir):
+            if not self.opts.quiet:
+                if not success:
+                    print >> sys.stderr, "eups undeclare %s %s" % (pkg, version)
+                print >> sys.stderr, "rm -rf %s" % instdir
+
+            if not success:
+                os.system("eups undeclare %s %s" % (pkg, version))
+            if os.system("rm -rf %s" % instdir) != 0:
+                self.die("Failed to remove %s" % instdir)
 
         sys.exit(stat / 256)
 
@@ -238,6 +384,9 @@ class GetTable(Cmd):
     Update the EUPS table file from the software server for a given package.
     This is mainly used for retrieving updated table files for 3rd-party
     packages. 
+
+    The --current (-c) and --not-current (-N) options are ignored by this
+    command.
     """
 
     usage = "usage: %s [ -hsvn ] %s package [ version ]"
@@ -260,7 +409,10 @@ class GetTable(Cmd):
             self.die("EUPS_PKGROOT not set; please load the LSST environment")
 
         # get information from the server about package
-        (curver, subdir, svrdir) = self.getCurrentVerData(pkg)
+        try:
+            (curver, subdir, svrdir) = self.getCurrentVerData(pkg)
+        except Exception, e:
+            self.die(e.message)
 
         if version is None:
             # we will assume that the table file for the current version
@@ -290,23 +442,6 @@ class GetTable(Cmd):
             os.execvp(cmd[0], cmd)
         sys.exit(0)
 
-    def getCurrentVerData(self, pkg):
-        pkgpat = re.compile(r'%s\s' % pkg)
-
-        cururl = "%s/current.list" % os.environ["EUPS_PKGROOT"]
-        curlist = urllib2.urlopen(cururl)
-        desc = filter(lambda x: pkgpat.match(x), curlist.readlines())
-        curlist.close()
-        
-        if len(desc) == 0:
-            self.die(pkg + ": unknown package")
-        desc = desc[0].split()
-        if len(desc) <= 2:
-            self.die(pkg + ": current version not set")
-        if len(desc) <= 3:  desc.append('')
-        if len(desc) <= 4:  desc.append('')
-        return (desc[2], desc[3], desc[4])
-        
 
 cmds = { 'fetch' : Fetch, 'remove' : Remove, 'gettable': GetTable }
 
@@ -323,6 +458,12 @@ cl.add_option("-v", "--verbose",
 cl.add_option("-n", "--noop",
               action="store_true", dest="noop", default=False,
               help="do not actually execute command, just talk about it.")
+cl.add_option("-c", "--current",
+              action="store_const", dest="docurrent", const=True, default=None,
+              help="Force the newly installed package to be marked current.")
+cl.add_option("-N", "--not-current",
+              action="store_const", dest="docurrent", const=False, default=None,
+              help="Prevent the newly installed package from being marked current.")
 cl.add_option("-h", "--help",
               action="store_true", dest="wanthelp", default=False,
               help="print this help information")
