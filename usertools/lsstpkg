@@ -203,6 +203,8 @@ class Fetch(Cmd):
     def run(self):
         cmd = "eups distrib -i -C".split()
         (pkg, version) = self._cmdargs(self.args)
+        if self.opts.prefflavor:
+            cmd.append("-b")
 
         if pkg is None:
             self.die(self.name + ": No package name given")
@@ -458,6 +460,9 @@ cl.add_option("-v", "--verbose",
 cl.add_option("-n", "--noop",
               action="store_true", dest="noop", default=False,
               help="do not actually execute command, just talk about it.")
+cl.add_option("-b", "--prefer-flavor",
+              action="store_true", dest="prefflavor", default=False,
+              help="Retrieve platform-specific distributions when available (short option mnumonic: binary).")
 cl.add_option("-c", "--current",
               action="store_const", dest="docurrent", const=True, default=None,
               help="Force the newly installed package to be marked current.")

@@ -5,8 +5,13 @@ import os
 import os.path
 import cStringIO
 import re
+import errno
 from copy import copy
 # import cgitb; cgitb.enable()
+
+stackver = "pkgs"
+stackrootdir = "/lsst/softstack"
+pkgsdir = os.path.join(stackrootdir, stackver)
 
 defaultManifestHeader = \
 """EUPS distribution manifest for %s (%s). Version 1.0
@@ -240,13 +245,13 @@ class Loader:
         if file in self.visited:
             # silently skip this file since we've already processed it
             return
-        
+
         if pkgname is None:
             if version is None:  version = manifest.vers
             if flavor is None: flavor = manifest.flav
             pkgname = manifest.name
         if version is None:
-            ValueError, "can't set a default version for " + pkgname
+            raise ValueError, "can't set a default version for " + pkgname
         if flavor is None:
             flavor = "generic"
             
@@ -267,7 +272,7 @@ class Loader:
         try:
             for line in mf:
                 ppath = None
-                flavor = "generic"
+                dflavor = flavor
                 line = line.strip()
                 if line.startswith('#'):
                     continue
@@ -301,17 +306,24 @@ class Loader:
                             ppath = args[3]
 
                         if len(args) > 4:
-                            flavor = args[4]
+                            dflavor = args[4]  # flavor explicitly requested
 
-                        (file, pp) = self.getFileFor(pkg, ver, flavor)
+                        # look first for the same flavor as dependent package
+                        # (or as explicitly requested).  If a flavor specific
+                        # manifest file does not exist, try for the generic
+                        # version
+                        (file, pp) = self.getFileFor(pkg, ver, dflavor)
+                        if not os.path.exists(file):
+                            (file, pp) = self.getFileFor(pkg, ver)
+                            dflavor = "generic"
                         if ppath is None:  ppath = pp
-                            
+
                         self.loadFromFile(manifest, file, ppath,
-                                          pkg, ver, flavor)
+                                          pkg, ver, dflavor)
 
                     elif line[1:].startswith("self"):
                         # create a record for the package this file describes
-                        manifest.addLSSTRecord(pkgname, version,pkgpath,flavor)
+                        manifest.addLSSTRecord(pkgname, version,pkgpath,dflavor)
 
                     elif line[1:].startswith("add:"):
                         # add a standard record for a package (ignoring its
@@ -340,9 +352,9 @@ class Loader:
                             ppath = args[3]
 
                         if len(args) > 4:
-                            flavor = args[4]
+                            dflavor = args[4]
 
-                        manifest.addLSSTRecord(pkg, ver, ppath, flavor)
+                        manifest.addLSSTRecord(pkg, ver, ppath, dflavor)
 
                     else:
                         msg = "unrecognized directive"
@@ -380,6 +392,10 @@ class Loader:
         """
         (pkgname, version, flavor) = manifest.getNameVerFlav()
         (mfilename, pkgpath) = self.getFileFor(pkgname, version, flavor)
+        if not os.path.exists(mfilename):
+            raise IOError, (errno.ENOENT,
+                            "%s: top-level file not found" % mfilename,
+                            mfilename)
         self.loadFromFile(manifest, mfilename, pkgpath)
 
 
@@ -491,7 +507,7 @@ def EUPSManifestService():
 
 #    sys.stderr.write("path: %s" % path)
 
-    ldr = Loader("/lsst/softstack/pkgs")
+    ldr = Loader(pkgsdir)
     ldr.strict = False
 
     if path.endswith(".manifest"):
@@ -520,11 +536,20 @@ def EUPSManifestService():
     flavor = dir
     if flavor is None or len(flavor) == 0:  flavor = "generic"
     out = Manifest(pkg, version, flavor)
-    ldr.load(out)
+    try:
+        ldr.load(out)
 
-    sys.stdout.write("Content-type: text/plain\n\n")
-    out.printRecord(sys.stdout)
-    sys.stdout.close()
+        sys.stdout.write("Content-type: text/plain\n\n")
+        out.printRecord(sys.stdout)
+        sys.stdout.close()
+        
+    except IOError, e:
+        if e.errno == errno.ENOENT:
+            # this is a hack to return a 404 response
+            sys.stdout.write("Location: /manifests%s\n\n" %
+                             os.environ["PATH_INFO"])
+        else:
+            raise e
 
 def test():
     test = Manifest("fw", "0.3")
