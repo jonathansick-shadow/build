@@ -389,8 +389,8 @@ class Remove(Cmd):
             if not self.opts.noop:
                 if not success:
                     os.system("eups undeclare %s %s" % (pkg, version))
-                    if os.system("rm -rf %s" % instdir) != 0:
-                        self.die("Failed to remove %s" % instdir)
+                if os.system("rm -rf %s" % instdir) != 0:
+                    self.die("Failed to remove %s" % instdir)
 
         sys.exit(stat / 256)
 
