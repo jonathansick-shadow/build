@@ -71,10 +71,9 @@ cd('$LSST_HOME')
 echo ("Pacman installation of m4_PACKAGE-m4_VERSION complete.")
 # echo ("")
 
-uninstallShell('eups_undeclare scons m4_VERSION; true')
-
-uninstallShell('rm -rf $PWD/m4_PACKAGE/m4_VERSION')
-uninstallShell('rmdir $PWD/m4_PACKAGE; true')
+uninstallShell('eups_undeclare m4_PACKAGE m4_VERSION; true')
+uninstallShell('rm -rf $PWD/m4_PKGPATH')
+uninstallShell('rmdir $PWD/deploy/m4_PACKAGE; true')
 
 
 
