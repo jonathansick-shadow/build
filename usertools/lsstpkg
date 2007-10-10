@@ -17,6 +17,8 @@ sys.path.append(os.path.join(os.environ['EUPS_DIR'], "bin"))
 import eups
 
 pmnotfound = re.compile(r"Package \[[^\]]*\] found in \[[^\]]*\]")
+pmcantfind = re.compile(r"Can't find \[");
+pmfound = re.compile(r"\[\*\] ");
 
 def main():
     
@@ -276,7 +278,8 @@ class Remove(Cmd):
         return (pkg, ver)
 
     def run(self):
-        cmd = "pacman -remove LSST:%s-%s"
+        listcmd = "pacman -l %s-%s"
+        cmd = "pacman -remove LSST:%s"
         (pkg, version) = self._cmdargs(self.args)
 
         if pkg is None:
@@ -304,7 +307,7 @@ class Remove(Cmd):
         else:
             instdir = None
 
-        cmd = cmd % (pkg, version)
+        listcmd = listcmd % (pkg, version)
 
         # this has be done from the LSST_PKGS directory
         if not os.environ.has_key('EUPS_PATH'):
@@ -331,32 +334,41 @@ class Remove(Cmd):
             print >> sys.stderr, \
                 "Warning: unable to locate pacman database (o..pacman..o)."
         else: 
-            success = True
             for dir in dirs:
-                # if desired, print the commands that can be used to do this
-                # manually
-                if not self.opts.quiet:
-                    print >> sys.stderr, "Removing %s %s..." % (pkg, version)
-                if self.opts.verbose > 0:
-                    print >> sys.stderr, "cd", dir
-                    print >> sys.stderr, cmd
-                if not self.opts.quiet:
-                    print >> sys.stderr
-            
-                # run the command and exit
-                if not self.opts.noop:
-                    cmdout = os.popen("cd %s && %s 2>&1" % (dir, cmd),'r')
-                    for line in cmdout:
-                        if pmnotfound.match(line): success = False
+                listout = os.popen("cd %s && %s 2>&1" % (dir, listcmd), 'r')
+                for line in listout:
+                    if pmfound.match(line):
+                        # found the package in this directory; remove it
+                        pmpkg = pmfound.sub('', line);
+                        rmcmd = ("cd %s && " + cmd) % (dir, pmpkg)
+
+                        # if desired, print the commands that can be used to 
+                        # do this manually
                         if not self.opts.quiet:
-                            print >> sys.stderr, line.rstrip()
-                    stat = cmdout.close()
-                    if stat is None:
-                        stat = 0
-                    else:
-                        success = False
-                        print >> sys.stderr, \
-                              "warning: possible problem running '%s'" % cmd
+                            print >> sys.stderr, \
+                                  "Removing %s %s..." % (pkg, version)
+                        if self.opts.noop or self.opts.verbose > 0:
+                            print >> sys.stderr, "cd", dir
+                            print >> sys.stderr, cmd % pmpkg
+                        if not self.opts.quiet:
+                            print >> sys.stderr
+            
+                        # run the command and exit
+                        if not self.opts.noop:
+                            cmdout = os.popen(rmcmd,'r')
+                            for rmline in cmdout:
+                                if pmnotfound.match(rmline): success = False
+                                if not self.opts.quiet:
+                                    print >> sys.stderr, rmline.rstrip()
+                            stat = cmdout.close()
+                            if stat is None:
+                                success = True
+                                stat = 0
+                            else:
+                                print >> sys.stderr, \
+                                    "warning: possible problem running '%s'" % \
+                                    rmcmd
+                listout.close()
 
                 # if it looks like pacman removed the package, don't bother
                 # going on.
@@ -366,17 +378,18 @@ class Remove(Cmd):
                                               (pkg, version, dir))
                     break
 
-        # now delete the actual installationn dir, if necessary
+        # now delete the actual installation dir, if necessary
         if instdir is not None and os.path.exists(instdir):
             if not self.opts.quiet:
                 if not success:
                     print >> sys.stderr, "eups undeclare %s %s" % (pkg, version)
                 print >> sys.stderr, "rm -rf %s" % instdir
 
-            if not success:
-                os.system("eups undeclare %s %s" % (pkg, version))
-            if os.system("rm -rf %s" % instdir) != 0:
-                self.die("Failed to remove %s" % instdir)
+            if not self.opts.noop:
+                if not success:
+                    os.system("eups undeclare %s %s" % (pkg, version))
+                    if os.system("rm -rf %s" % instdir) != 0:
+                        self.die("Failed to remove %s" % instdir)
 
         sys.exit(stat / 256)
 
