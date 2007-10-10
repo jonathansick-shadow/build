@@ -18,7 +18,7 @@ import eups
 
 pmnotfound = re.compile(r"Package \[[^\]]*\] found in \[[^\]]*\]")
 pmcantfind = re.compile(r"Can't find \[");
-pmfound = re.compile(r"\[\*\] ");
+pmfound = re.compile(r"\[[^]]+\] ");
 
 def main():
     
@@ -379,6 +379,7 @@ class Remove(Cmd):
                     break
 
         # now delete the actual installation dir, if necessary
+        print >> sys.stderr, "instdir:", instdir
         if instdir is not None and os.path.exists(instdir):
             if not self.opts.quiet:
                 if not success:
