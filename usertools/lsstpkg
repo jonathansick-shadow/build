@@ -379,7 +379,6 @@ class Remove(Cmd):
                     break
 
         # now delete the actual installation dir, if necessary
-        print >> sys.stderr, "instdir:", instdir
         if instdir is not None and os.path.exists(instdir):
             if not self.opts.quiet:
                 if not success:
