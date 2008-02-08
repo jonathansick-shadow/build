@@ -2,7 +2,7 @@
 #   LSSTInit:  ready a location for installing LSST packages
 #
 m4_changequote([, ])m4_dnl
-m4_define([m4_VERSION], [1.1])m4_dnl
+m4_define([m4_VERSION], [1.4])m4_dnl
 #
 packageName('LSSTinit')
 

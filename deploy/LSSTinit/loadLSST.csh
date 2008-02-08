@@ -52,4 +52,4 @@ if (! $?LSST_PKGS) then
 endif
 
 # Setup your default environemnt
-# setup LSST 1.0
+setup build
