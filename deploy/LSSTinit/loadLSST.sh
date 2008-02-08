@@ -52,4 +52,4 @@ if [ -z "$LSST_PKGS" ]; then
 fi
 
 # Setup your default environemnt
-setup build
+# setup build

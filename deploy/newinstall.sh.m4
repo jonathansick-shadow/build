@@ -90,7 +90,14 @@ fi
 cd $LSST_HOME
 
 # install the base tools
+export SHELL=/bin/bash
+source loadLSST.sh
 eups distrib -i -C build
+
+# we will make the build package to load by default when loadLSST.*sh 
+# is sourced
+echo setup build >> loadLSST.sh
+echo setup build >> loadLSST.csh
 
 # install binary versions of coral & seal; this gets around a bug in 
 # lsstpkg/eups distrib
