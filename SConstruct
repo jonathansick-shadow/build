@@ -34,7 +34,6 @@ if 'server' in COMMAND_LINE_TARGETS:
     SConscript("servertools/SConscript")
 
 env['IgnoreFiles'] = r"(~$|\.pyc$|^\.svn$|\.o$)"
-env['INSTALL'] = scons.installFunc
 
 Alias("install", env.Install(env['prefix'], "buildtemplates"))
 Alias("install", env.Install(env['prefix'], "bin"))

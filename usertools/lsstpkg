@@ -232,9 +232,9 @@ class Fetch(Cmd):
             curver = eups.current(pkg);
 
             # this gets around a bug in eups.current()
-            if curver == 'No': curver = ''
+            if curver == 'No' or curver == '': curver = None
             
-            if len(curver) > 0:
+            if curver is not None:
                 # return the previous current version to its special status
                 cmd.extend((" && eups declare -c %s %s" %
                             (pkg, curver)).split())
@@ -302,10 +302,38 @@ class Remove(Cmd):
         # get the directory where it is actually installed so we can be sure
         # to get it deleted
         instdir = list(pkg, version)
+
+        # there's a bug causing lsstpkg to remove the wrong package.  Hopefully,
+        # this will capture the problem
+        if len(instdir) > 0 and instdir[0] != version:
+            print >> sys.stderr, \
+                  "Warning: This looks like the wrong version to remove:", \
+                  instdir[0]
+            print >> sys.stderr, "Post this info to ticket #238:"
+            print >> sys.stderr, \
+                  "Debug info:", pkg, version, "=> [", \
+                  ", ".join(map(lambda x: str(x), instdir)), "]"
+            if not self.opts.force:
+                print >> sys.stderr, "Will not remove; Use -f to force"
+                self.die("aborting")
+
         if len(instdir) > 1:
             instdir = instdir[2]
         else:
             instdir = None
+
+        # there's a bug causing lsstpkg to remove the wrong package.  Hopefully,
+        # this will capture the problem
+        pathpat = re.compile("%s/%s$" % (pkg, version));
+        if instdir is not None and not pathpat.search(instdir):
+            print >> sys.stderr, \
+                  "Warning: This looks like the wrong directory to remove:", \
+                  instdir
+            print >> sys.stderr, "Post this info to ticket #238:"
+            print >> sys.stderr, "Debug info:", pkg, version, "=>", instdir
+            if not self.opts.force:
+                print >> sys.stderr, "Will not remove; Use -f to force"
+                self.die("aborting")
 
         listcmd = listcmd % (pkg, version)
 
@@ -473,9 +501,12 @@ cl.add_option("-v", "--verbose",
 cl.add_option("-n", "--noop",
               action="store_true", dest="noop", default=False,
               help="do not actually execute command, just talk about it.")
-cl.add_option("-b", "--prefer-flavor",
-              action="store_true", dest="prefflavor", default=False,
-              help="Retrieve platform-specific distributions when available (short option mnumonic: binary).")
+cl.add_option("-f", "--force",
+              action="store_true", dest="force", default=False,
+              help="Force the removal of package, overriding warnings.")
+cl.add_option("-s", "--prefer-source",
+              action="store_false", dest="prefflavor", default=True,
+              help="Build all packages from source (even when binaries are available).")
 cl.add_option("-c", "--current",
               action="store_const", dest="docurrent", const=True, default=None,
               help="Force the newly installed package to be marked current.")

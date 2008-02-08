@@ -89,6 +89,15 @@ if [ $? != 0 ]; then
 fi
 cd $LSST_HOME
 
+# install the base tools
+eups distrib -i -C build
+
+# install binary versions of coral & seal; this gets around a bug in 
+# lsstpkg/eups distrib
+# export SHELL=/bin/bash
+# setup build
+# lsstpkg fetch -b -c coral
+
 echo Initialization complete
 echo 
 echo "Now type "
