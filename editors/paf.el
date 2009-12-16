@@ -123,7 +123,7 @@ with no args, if it is non-nil.
     (beginning-of-line)
     (skip-chars-forward " \t")
 
-    (if has-comment
+    (if (and has-comment (not (looking-at "#")))
 	(save-excursion (comment-indent)))
     ))
 
@@ -161,10 +161,15 @@ with no args, if it is non-nil.
        ;;
        '("\\<include[ \t]*[^ \t]*" . font-lock-comment-face)
        ;;
+       ;; Reserved words
+       ;;
+       '("\\<\\(allowed\\|default\\|description\\|definitions\\|dictionary\\(File\\)?\\|\\(min\\|max\\)Occurs\\|target\\|type\\|value\\)\\>:"
+	 . font-lock-keyword-face)
+       ;;
        ;; Keys (and following :)
        ;;
        '("\\<\\([a-zA-Z0-9_]+\\)\\>:"
-	 . font-lock-keyword-face)
+	 . font-lock-type-face)
        ;;
        ;; string -- "quoted text" and 'strings'
        ;;
