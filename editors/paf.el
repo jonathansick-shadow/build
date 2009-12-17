@@ -163,7 +163,7 @@ with no args, if it is non-nil.
        ;;
        ;; Reserved words
        ;;
-       '("\\<\\(allowed\\|default\\|description\\|definitions\\|dictionary\\(File\\)?\\|\\(min\\|max\\)Occurs\\|target\\|type\\|value\\)\\>:"
+       '("\\<\\(allowed\\|default\\|description\\|definitions\\|dictionary\\(File\\)?\\|\\(min\\|max\\)\\(Occurs\\)?\\|target\\|type\\|value\\)\\>:"
 	 . font-lock-keyword-face)
        ;;
        ;; Keys (and following :)
