@@ -50,11 +50,7 @@ regardless of where in the line point is when the TAB command is used.")
 (if paf-mode-map
     ()
   (setq paf-mode-map (make-sparse-keymap))
-;  (define-key paf-mode-map "\t" 'paf-tab)
-;  (define-key paf-mode-map "\C-m" 'paf-newline-and-indent)
-;  (define-key paf-mode-map "}" 'paf-insert-and-indent)
-;  (define-key paf-mode-map "\e\t" 'paf-indent-line)
-;  (define-key paf-mode-map "\e;" 'paf-add-comment)
+;  (define-key paf-mode-map "\t" 'func)
   )
 
 ;;
@@ -123,7 +119,7 @@ with no args, if it is non-nil.
     (beginning-of-line)
     (skip-chars-forward " \t")
 
-    (if (and has-comment (not (looking-at "#")))
+    (if (and (not (looking-at comment-start))) has-comment
 	(save-excursion (comment-indent)))
     ))
 
@@ -149,6 +145,20 @@ with no args, if it is non-nil.
 	  (setq icol (- icol paf-indent))))
     (max 0 icol)))
 
+(defun paf-insert-header (&optional dict)
+  "Insert a PAF header at the top of the file if there isn't already one; with a prefix argument
+insert a dictionary header"
+  (interactive "P")
+  (let ((header (if dict
+	      "#<?cfg paf dictionary ?>\n#target: XXX" "#<?cfg paf policy ?>"))
+	)
+    (if (save-excursion
+	  (goto-char (point-min))
+	  (looking-at "#<\\?cfg paf"))
+	t
+	(goto-char (point-min))
+      (insert (concat header "\n\n")))))
+
 
 ;;
 ;; Font lock mode for PAF files
@@ -161,15 +171,10 @@ with no args, if it is non-nil.
        ;;
        '("\\<include[ \t]*[^ \t]*" . font-lock-comment-face)
        ;;
-       ;; Reserved words
-       ;;
-       '("\\<\\(allowed\\|default\\|description\\|definitions\\|dictionary\\(File\\)?\\|\\(min\\|max\\)\\(Occurs\\)?\\|target\\|type\\|value\\)\\>:\\|\\<bool\\|double\\|int\\|string\\|true\\|false\\>"
-	 . font-lock-keyword-face)
-       ;;
        ;; Keys (and following :)
        ;;
-       '("\\<\\([a-zA-Z0-9_]+\\)\\>:"
-	 . font-lock-type-face)
+       '("\\<\\([a-zA-Z0-9_.]+\\)\\>:"
+	 . font-lock-keyword-face)
        ;;
        ;; string -- "quoted text" and 'strings'
        ;;
