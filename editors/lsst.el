@@ -30,11 +30,12 @@
     (add-to-list 'c-offsets-alist (cons 'statement-case-intro 2))
     (add-to-list 'c-offsets-alist (cons 'statement-case-open 2))
     (add-to-list 'c-offsets-alist (cons 'case-label 2)))
+  (c-set-offset 'innamespace 0)	;; don't indent namespaces
 
   (setq comment-column 40)
   (setq fill-column 80)
   (setq tab-width 8)
-  (setq indent-tabs-mode nil) ;; use spaces instead of tabs
+  (setq indent-tabs-mode nil)	;; use spaces instead of tabs
   )
 ;;;
 ;;; The code standards state the files should specify C++-LSST mode;
