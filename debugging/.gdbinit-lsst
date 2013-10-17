@@ -1,0 +1,207 @@
+#
+# Use Citizen to analyse memory leaks
+#
+def citizen
+end
+doc Citizen
+.  bnew     Stop when memory ID $lsstNewCallbackId == $ARG0 is allocated.
+.  dbnew    Delete the breakpoints set by bnew
+.  bdelete  Stop when memory ID $lsstDeleteCallbackId == $ARG0 is deleted
+.  dbdelete Delete the breakpoints set by bdelete
+.  citizenb Make breakpoint $arg0 conditional on $arg1's memory serial number being $arg2
+
+.  pcitizen Print a Citizen's memId and type
+end
+
+dir ~/LSST/daf/base/src 
+
+define bnew
+	if $init_breakpt_new
+		# breakpoints are already set
+	else
+		b 'lsst::daf::base::defaultNewCallback(lsst::daf::base::Citizen const*)'
+		set $callback_breakpt_new = $bpnum
+		#b lsst::daf::base::Citizen::init
+		# Break in CitizenInit
+		b Citizen.cc:25
+		set $init_breakpt_new = $bpnum
+	end
+
+	set $lsstNewCallbackId = $arg0
+
+	#cond $init_breakpt_new 'lsst::daf::base::Citizen::_newId' = $lsstNewCallbackId, 0
+	#set 'lsst::daf::base::Citizen::_newId' = $lsstNewCallbackId
+	cond $init_breakpt_new (long)'lsst::daf::base::Citizen::setNewCallbackId'($lsstNewCallbackId),0
+end
+doc bnew
+Stop when memory ID $lsstNewCallbackId == $ARG0 is allocated.
+.
+See also bdelete
+.
+N.b. You will need to issue a bnew command every time that you reload the
+binary (including python imports of swig modules) as gdb foolishly resets
+even ints to void at that point.
+.
+The error is "Invalid type combination in equality test" (or gdb may crash).
+.
+The workaround is to use the "dbnew" command _before_ reloading gdb, and
+then issuing a new "dbnew XXX" command afterwards.  Sorry.
+end
+
+def dbnew
+   if $init_breakpt_new
+      delete $callback_breakpt_new
+      set $callback_breakpt_new = 0
+      delete $init_breakpt_new
+      set $init_breakpt_new = 0
+
+      printf "To reset these breakpoints say:\n"
+      printf "\tbnew %d\n", $lsstNewCallbackId
+   end
+end
+doc dbnew
+Delete the breakpoints set by bnew
+end
+
+#-----
+
+define bdelete
+	if $init_breakpt_delete
+		# breakpoints are already set
+	else
+		b lsst::daf::base::defaultDeleteCallback(lsst::daf::base::Citizen const*)'
+		set $callback_breakpt_delete = $bpnum
+		#b lsst::daf::base::Citizen::init
+		# Break in CitizenInit
+		b Citizen.cc:25
+		set $init_breakpt_delete = $bpnum
+	end
+
+	set $lsstDeleteCallbackId = $arg0
+
+	cond $init_breakpt_new 'lsst::daf::base::Citizen::_deleteId' = $lsstDeleteCallbackId, 0
+	set 'lsst::daf::base::Citizen::_deleteId' = $lsstDeleteCallbackId
+end
+
+doc bdelete
+Stop when memory ID $lsstDeleteCallbackId == $ARG0 is deleted
+.
+See also bnew
+.
+N.b. You will need to issue a bdelete command every time that you reload the
+binary (including python imports of swig modules) as gdb foolishly resets
+even ints to void at that point.
+.
+The error is "Invalid type combination in equality test" (or gdb may crash).
+.
+The workaround is to use the "dbdelete" command _before_ reloading gdb, and
+then issuing a new "bnew XXX" command afterwards.  Sorry.
+end
+
+def dbdelete
+   if $init_breakpt_delete
+      delete $callback_breakpt_delete
+      set $callback_breakpt_delete = 0
+      delete $init_breakpt_delete
+      set $init_breakpt_delete = 0
+
+      printf "To reset these breakpoints say:\n"
+      printf "\tbdelete %d\n", $lsstDeleteCallbackId
+   end
+end
+doc dbdelete
+Delete the breakpoints set by bdelete
+end
+
+define citizenb
+	cond $arg0 $arg1 != 0 && ($arg1)->_id == $arg2
+end
+doc citizenb
+Make breakpoint $arg0 conditional on $arg1's memory serial number being $arg2
+
+N.b. If $arg0 is a boost::shared_ptr, you probably need to say $arg0.px
+end
+
+
+def pcitizen
+   printf "0x%x %d %s 0x%x\n", ($arg0), ($arg0)->_CitizenId, ($arg0)->_typeName, ($arg0)->_sentinel
+end
+doc pcitizen
+Print a Citizen's memId and type
+end
+
+def bexception
+b 'lsst::pex::exceptions::Exception::Exception(char const*, int, char const*, std::string const&)'
+b Exception.cc:52
+end
+doc bexception
+Set an exception in Exception's constructor (as called by LSST_EXCEPT)
+end
+
+def _pbbox
+   printf "(%d, %d) %dx%d", ($arg0).first._x, ($arg0).first._y, ($arg0).second.first, ($arg0).second.second
+end
+
+def pbbox
+   _pbbox $arg0
+   printf "\n"
+end
+
+def pfootprint
+   _pbbox ($arg0)._bbox
+   printf "  npix = %d\n", ($arg0)._npix
+   if $argc > 1
+      pvector ($arg0)._spans
+   end
+end
+doc pfootprint
+Print info about a Footprint; with arg1, print the spans too
+end
+
+def pimage
+    whatis ($arg0)
+
+    set $_gilView = ($arg0)._gilView
+
+    printf "%dx%d  XY0: (%d,%d)\n", $_gilView._dimensions.x, $_gilView._dimensions.y, ($arg0)._x0, ($arg0)._y0
+end
+doc pimage
+Tell us about an Image; see also ppixel
+end
+
+def ppixel
+    set $_gilView = ($arg0)._gilView
+    set $_viewIterator = $_gilView._pixels._p
+    set $_viewBase = $_viewIterator.m_iterator
+
+    set $_ptr = (char *)$_viewBase + $_viewIterator._step_fn._step*$arg2
+    set $_size = sizeof($_viewBase[0])
+
+    if $argc > 3
+        set $_nelem = $arg3
+    else
+        set $_nelem = 1
+    end
+
+    if $_size == 2
+        print ((short *)$_ptr)[$arg1]@$_nelem
+    else
+        if $_size == 4
+	    if $argc > 4
+	        print ((int *)$_ptr)[$arg1]@$_nelem
+	    else
+	        print ((float *)$_ptr)[$arg1]@$_nelem
+	    end
+        else
+            if $_size == 8
+                print ((double *)$_ptr)[$arg1]@$_nelem
+            end
+	end
+    end
+end
+doc ppixel
+Print Image $arg0's ($arg1, $arg2) pixel
+With an extra argument, print that many pixels
+With an extra extra argument, treat 4-byte pixels as ints (hack hack hack)
+end
+
