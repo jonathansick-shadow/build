@@ -14,12 +14,13 @@ stackrootdir = "/lsst/softstack"
 pkgsdir = os.path.join(stackrootdir, stackver)
 
 defaultManifestHeader = \
-"""EUPS distribution manifest for %s (%s). Version 1.0
+    """EUPS distribution manifest for %s (%s). Version 1.0
 #
 """
 
 defaultColumnNames = \
-"pkg flavor version tablefile installation_directory installID".split()
+    "pkg flavor version tablefile installation_directory installID".split()
+
 
 class Manifest:
     """an in-memory representation of a package manifest."""
@@ -51,7 +52,7 @@ class Manifest:
         self.commcount += 1
         key = '#'+str(self.commcount)
         self.keys.append(key)
-        self.recs[key] = [ '' ] * len(self.colnames)
+        self.recs[key] = [''] * len(self.colnames)
         self.recs[key][-1] = comment
 
     def addRecord(self, pkgname, flavor, version,
@@ -90,11 +91,11 @@ class Manifest:
         fpkgpath = "%s/%s" % (pkgname, version)
         if (pkgpath is not None and len(pkgpath) > 0):
             fpkgpath = "%s/%s" % (pkgpath, fpkgpath)
-            
+
         self.addRecord(pkgname, flavor, version, pkgname+".table", fpkgpath,
                        self.defaultID(pkgname, flavor, version, id))
-                       
-    def addExtRecord(self, pkgname, version, pkgpath="external", 
+
+    def addExtRecord(self, pkgname, version, pkgpath="external",
                      flavor="generic", id="pacman"):
         """append a standard build record for an LSST package
 
@@ -182,7 +183,7 @@ class Manifest:
         """
         collen = self._collen()
         fmt = "%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%s\n" % tuple(collen[:-1])
-        
+
         strm.write(self.hdr % (self.name, self.vers))
         strm.write((fmt % tuple(self.colnames)))
         strm.write("#" + " ".join(map(lambda x: '-' * x, collen))[1:79])
@@ -193,16 +194,17 @@ class Manifest:
                 strm.write("# %s\n" % self.recs[key][-1])
             else:
                 strm.write(fmt % tuple(self.recs[key]))
-            
+
     def _collen(self):
         x = self.recs.values()
         x.append(self.colnames)
         return map(lambda y: max(map(lambda x: len(x[y]), x)),
-                   xrange(0,len(self.colnames)))
-    
+                   xrange(0, len(self.colnames)))
+
 defaultCurrentFile = "current.list"
 
 defaultManfileName = "manifest.list"
+
 
 class Loader:
     """a class that can load a Manifest from directive files"""
@@ -221,7 +223,7 @@ class Loader:
         self.currentfile = defaultCurrentFile
         self.manfile = defaultManfileName
 
-    def loadFromFile(self, manifest, file, pkgpath=None, 
+    def loadFromFile(self, manifest, file, pkgpath=None,
                      pkgname=None, version=None, flavor=None):
         """load records into a manifest according to directives in the
         given file.
@@ -247,14 +249,16 @@ class Loader:
             return
 
         if pkgname is None:
-            if version is None:  version = manifest.vers
-            if flavor is None: flavor = manifest.flav
+            if version is None:
+                version = manifest.vers
+            if flavor is None:
+                flavor = manifest.flav
             pkgname = manifest.name
         if version is None:
             raise ValueError, "can't set a default version for " + pkgname
         if flavor is None:
             flavor = "generic"
-            
+
         try:
             mf = open(file, "r")
             self.openfiles.append(file)
@@ -262,8 +266,10 @@ class Loader:
             if (self.strict or enum != 2):
                 raise IOError, (enum, "%s: %s" % (file, emsg))
             else:
-                if pkgpath is None:  pkgpath = ''
-                if len(pkgpath) > 0: pkgpath = "(%s)" % pkgpath
+                if pkgpath is None:
+                    pkgpath = ''
+                if len(pkgpath) > 0:
+                    pkgpath = "(%s)" % pkgpath
                 manifest.addComment("No manifest found for %s %s %s: %s" %
                                     (pkgname, version, pkgpath, file))
                 self.visited.append(file)
@@ -289,7 +295,7 @@ class Loader:
                                                line[1:], manifest)
                             continue
                         pkg = args[1]
-                        
+
                         if len(args) > 2:
                             ver = args[2]
                         else:
@@ -300,7 +306,8 @@ class Loader:
                                                    line[1:], manifest)
                                 continue
                             ver = lu[0]
-                            if len(lu) > 1:  ppath = lu[1]
+                            if len(lu) > 1:
+                                ppath = lu[1]
 
                         if len(args) > 3:
                             ppath = args[3]
@@ -316,14 +323,15 @@ class Loader:
                         if not os.path.exists(file):
                             (file, pp) = self.getFileFor(pkg, ver)
                             dflavor = "generic"
-                        if ppath is None:  ppath = pp
+                        if ppath is None:
+                            ppath = pp
 
                         self.loadFromFile(manifest, file, ppath,
                                           pkg, ver, dflavor)
 
                     elif line[1:].startswith("self"):
                         # create a record for the package this file describes
-                        manifest.addLSSTRecord(pkgname, version,pkgpath,dflavor)
+                        manifest.addLSSTRecord(pkgname, version, pkgpath, dflavor)
 
                     elif line[1:].startswith("add:"):
                         # add a standard record for a package (ignoring its
@@ -335,7 +343,7 @@ class Loader:
                                                line[1:], manifest)
                             continue
                         pkg = args[1]
-                        
+
                         if len(args) > 2:
                             ver = args[2]
                         else:
@@ -346,7 +354,8 @@ class Loader:
                                                    line[1:], manifest)
                                 continue
                             ver = lu[0]
-                            if len(lu) > 1:  ppath = lu[1]
+                            if len(lu) > 1:
+                                ppath = lu[1]
 
                         if len(args) > 3:
                             ppath = args[3]
@@ -369,17 +378,15 @@ class Loader:
                                      r"(\S+)\s+(\S+)\s+(\S+)", line)
                     if match is not None:
                         (pkg, flav, ver, tbl, instdir, instid) = match.groups()
-                        manifest.addRecord(pkg, flav, ver, tbl,instdir,instid)
+                        manifest.addRecord(pkg, flav, ver, tbl, instdir, instid)
                     else:
                         self.badFileSyntax("unrecognized syntax: " + line)
                         continue
-                
+
         finally:
             mf.close()
             self.openfiles.pop(-1)
             self.visited.append(file)
-            
-        
 
     def load(self, manifest):
         """load records into a manifest.
@@ -397,7 +404,6 @@ class Loader:
                             "%s: top-level file not found" % mfilename,
                             mfilename)
         self.loadFromFile(manifest, mfilename, pkgpath)
-
 
     def lookupCurrent(self, pkgname):
         """look up the current version of and relative path to a given
@@ -417,7 +423,7 @@ class Loader:
             return self.pkgPath[pkgname]
 
         cf = open(os.path.join(self.basedir, self.currentfile))
-        try: 
+        try:
             parts = []
             for line in cf:
                 line = line.strip()
@@ -433,12 +439,13 @@ class Loader:
         # if we didn't find it in the current file, try to guess some values
         if parts[0] != pkgname:
             parts = [pkgname, 'Linux', '']
-            path = os.path.join(self.basedir,pkgname)
+            path = os.path.join(self.basedir, pkgname)
             if not os.path.exists(path):
                 # try the external directory
                 parts.append('external')
-                path = os.path.join(self.basedir,'external',pkgname)
-                if not os.path.exists(path): parts = []
+                path = os.path.join(self.basedir, 'external', pkgname)
+                if not os.path.exists(path):
+                    parts = []
 
         out = []
         if len(parts) < 3 or parts[0] != pkgname:
@@ -473,19 +480,19 @@ class Loader:
                 # we have no way of determining which verison to get; bail.
                 return None
             version = lu[0]
-        
+
         file = self.basedir
         pkgpath = None
         if len(lu) > 1 and len(lu[1]) > 0:
-            pkgpath = lu[1]            
+            pkgpath = lu[1]
             file = os.path.join(file, pkgpath)
 
-        # determine package directory 
+        # determine package directory
         pkgdir = os.path.join(pkgname, version)  # default
         if len(lu) > 2 and len(lu[2]) > 0:
             # override
             pkgdir = lu[2]
-        
+
         file = os.path.join(file, pkgdir)
 
         if flavor is not None and flavor != '' and flavor != "generic":
@@ -499,6 +506,7 @@ class Loader:
             raise RuntimeError, msg
         else:
             manifest.addComment(msg)
+
 
 def EUPSManifestService():
     path = os.environ["PATH_INFO"]
@@ -517,7 +525,7 @@ def EUPSManifestService():
 
     dir = None
     if path.find("/") > 0:
-#        (dir, path) = path.rsplit("/", 1)
+        #        (dir, path) = path.rsplit("/", 1)
         dir = os.path.dirname(path)
         path = os.path.basename(path)
 
@@ -534,7 +542,8 @@ def EUPSManifestService():
         raise ValueError, "bad manifest file name: " + os.environ["PATH_INFO"]
 
     flavor = dir
-    if flavor is None or len(flavor) == 0:  flavor = "generic"
+    if flavor is None or len(flavor) == 0:
+        flavor = "generic"
     out = Manifest(pkg, version, flavor)
     try:
         ldr.load(out)
@@ -542,7 +551,7 @@ def EUPSManifestService():
         sys.stdout.write("Content-type: text/plain\n\n")
         out.printRecord(sys.stdout)
         sys.stdout.close()
-        
+
     except IOError, e:
         if e.errno == errno.ENOENT:
             # this is a hack to return a 404 response
@@ -551,13 +560,14 @@ def EUPSManifestService():
         else:
             raise e
 
+
 def test():
     test = Manifest("fw", "0.3")
     ldr = Loader(".")
     ldr.strict = False
     ldr.load(test)
     test.printRecord(sys.stdout)
-    
+
 if __name__ == "__main__":
     EUPSManifestService()
-    
+
